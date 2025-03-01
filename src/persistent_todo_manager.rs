@@ -1,3 +1,5 @@
+#![allow(unused_must_use)]
+
 use crate::todo_manager::TodoManager;
 use chrono::{DateTime, Days, Utc};
 use sqlx::{migrate::MigrateDatabase, Pool, Row, Sqlite, SqlitePool};
@@ -50,8 +52,13 @@ impl PersistentTodoManager {
         let running_dir = std::env::current_dir().unwrap();
         let migrations = std::path::Path::new(&running_dir).join("./migrations");
 
-        let migration_folder_exists = migrations.exists();
-        if !migration_folder_exists {
+        let migration_folder_exists = migrations.try_exists();
+
+        if migration_folder_exists.is_err() {
+            panic!("Could not find migration folder");
+        }
+
+        if !migration_folder_exists.unwrap() {
             panic!("Migrations folder does not exist");
         }
 
@@ -196,7 +203,7 @@ impl TodoManager for PersistentTodoManager {
         let date = Utc::now().add(Days::new(days_count));
         let timestamp = date.timestamp();
 
-        let result = sqlx::query("UPDATE Tasks SET 'due_date' = ? WHERE title = ?")
+         sqlx::query("UPDATE Tasks SET 'due_date' = ? WHERE title = ?")
             .bind(timestamp)
             .bind(&title)
             .execute(&db)

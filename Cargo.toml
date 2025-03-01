@@ -4,6 +4,16 @@ version = "0.0.1"
 edition = "2021"
 
 [dependencies]
-sqlx = { version = "0.6.2", features = ["runtime-tokio-native-tls", "sqlite"]}
-tokio = { version = "1.20.0", features = ["macros"]}
+sqlx = { version = "0.8.3", features = ["runtime-tokio-native-tls", "sqlite"]}
+tokio = { version = "1.20.0", features = ["macros", "rt-multi-thread"]}
 chrono = "0.4.40"
+
+[rust]
+lto = "thin"
+
+[profile.release]
+strip = true  # Automatically strip symbols from the binary.
+opt-level = "z"  # Optimize for size.
+lto = true
+codegen-units = 1
+panic = "abort"
