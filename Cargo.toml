@@ -1,0 +1,8 @@
+[package]
+name = "rs_todo_manager"
+version = "0.0.1"
+edition = "2021"
+
+[dependencies]
+sqlx = { version = "0.6.2", features = ["runtime-tokio-native-tls", "sqlite"]}
+tokio = { version = "1.20.0", features = ["macros"]}

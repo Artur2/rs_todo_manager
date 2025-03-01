@@ -1,0 +1,170 @@
+use crate::todo_manager::TodoManager;
+use sqlx::{migrate::MigrateDatabase, Row, Sqlite, SqlitePool};
+
+pub struct PersistentTodoManager {
+    pub is_migrated: bool,
+    pub database_name: String,
+}
+
+impl PersistentTodoManager {
+    pub fn new(database_name: String) -> Self {
+        PersistentTodoManager {
+            is_migrated: false,
+            database_name,
+        }
+    }
+
+    pub async fn initialize(&mut self) {
+        let database_creation_result = self.create_database_if_not_exist().await;
+        match database_creation_result {
+            true => println!("Database successfully created or checked"),
+            false => panic!("Database creation failed"),
+        }
+
+        let migration_result = self.migrate().await;
+        match migration_result {
+            true => println!("Database migrated successfully"),
+            false => panic!("Database migration failed"),
+        }
+    }
+
+    pub async fn create_database_if_not_exist(&mut self) -> bool {
+        let result = Sqlite::database_exists(&self.database_name).await.unwrap();
+        if result == false {
+            println!("Creating database {}", &self.database_name);
+            match Sqlite::create_database(&self.database_name).await {
+                Ok(_) => {
+                    self.is_migrated = true;
+                    println!("Migration succeeded");
+                    true
+                }
+                Err(error) => {
+                    println!("error: {}", error);
+                    false
+                }
+            }
+        } else {
+            println!("Database already exists");
+            true
+        }
+    }
+
+    pub async fn migrate(&mut self) -> bool {
+        let running_dir = std::env::current_dir().unwrap();
+        let migrations = std::path::Path::new(&running_dir).join("./migrations");
+
+        let migration_folder_exists = migrations.exists();
+        if !migration_folder_exists {
+            panic!("Migrations folder does not exist");
+        }
+
+        let db = SqlitePool::connect(&self.database_name).await.unwrap();
+
+        let migration_results = sqlx::migrate::Migrator::new(migrations)
+            .await
+            .unwrap()
+            .run(&db)
+            .await;
+
+        match migration_results {
+            Ok(_) => true,
+            Err(_) => false,
+        }
+    }
+}
+
+impl TodoManager for PersistentTodoManager {
+    async fn add(&mut self, title: &str, description: &str, done: bool) {
+        let db = SqlitePool::connect(&self.database_name).await.unwrap();
+        let done_numeric: i32;
+        match done {
+            true => done_numeric = 1,
+            false => done_numeric = 0,
+        }
+
+        let result =
+            sqlx::query("INSERT INTO Tasks(title, description, completed) VALUES (?, ?, 0)")
+                .bind(&title)
+                .bind(&description)
+                .bind(&done_numeric)
+                .execute(&db)
+                .await;
+
+        match result {
+            Ok(_) => println!("task added"),
+            Err(_) => panic!("task not added"),
+        }
+    }
+
+    async fn remove(&mut self, title: &str) -> bool {
+        let db = SqlitePool::connect(&self.database_name).await.unwrap();
+
+        sqlx::query("DELETE FROM Tasks WHERE title = ?")
+            .bind(&title)
+            .execute(&db)
+            .await
+            .expect("Not Deleted");
+        true
+    }
+
+    async fn edit_title(&mut self, str: &str, new_title: &str) {
+        let db = SqlitePool::connect(&self.database_name).await.unwrap();
+
+        sqlx::query("UPDATE Tasks SET 'title' = ? WHERE title = ?")
+            .bind(&new_title)
+            .bind(&str)
+            .execute(&db)
+            .await
+            .expect("Not Deleted");
+    }
+
+    async fn edit_description(&mut self, str: &str, new_description: &str) {
+        let db = SqlitePool::connect(&self.database_name).await.unwrap();
+
+        sqlx::query("UPDATE Tasks SET 'description' = ? WHERE title = ?")
+            .bind(&new_description)
+            .bind(&str)
+            .execute(&db)
+            .await
+            .expect("Not updated");
+    }
+
+    async fn complete(&mut self, title: &str) -> bool {
+        let db = SqlitePool::connect(&self.database_name).await.unwrap();
+
+        let result = sqlx::query("UPDATE Tasks SET 'completed' = ? WHERE title = ?")
+            .bind(1)
+            .bind(&title)
+            .execute(&db)
+            .await;
+
+        result.is_ok()
+    }
+
+    async fn print_tasks(&self) {
+        let db = SqlitePool::connect(&self.database_name).await.unwrap();
+        let result = sqlx::query("SELECT * FROM Tasks")
+            .fetch_all(&db)
+            .await
+            .unwrap();
+
+        for (_, task) in result.iter().enumerate() {
+            let title = task.get::<String, &str>("title");
+            let description = task.get::<String, &str>("description");
+            let done = task.get::<u8, &str>("completed");
+            println!("{}\t{}\t completed: {}", title, description, done);
+        }
+    }
+
+    async fn is_task_exist(&mut self, title: &str) -> bool {
+        let db = SqlitePool::connect(&self.database_name).await.unwrap();
+
+        let result = sqlx::query("SELECT * FROM Tasks WHERE title = ?")
+            .bind(&title)
+            .fetch_all(&db)
+            .await
+            .unwrap();
+
+        result.len() != 0
+    }
+}
