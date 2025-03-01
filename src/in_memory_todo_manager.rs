@@ -1,5 +1,5 @@
 use crate::todo_manager::*;
-use chrono::{DateTime, Days, Utc};
+use chrono::{Days, Utc};
 use std::ops::Add;
 
 pub struct InMemoryTodoManager {

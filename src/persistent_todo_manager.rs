@@ -1,22 +1,18 @@
 use crate::todo_manager::TodoManager;
 use chrono::{DateTime, Days, Utc};
-use sqlx::{migrate::MigrateDatabase, Row, Sqlite, SqlitePool};
+use sqlx::{migrate::MigrateDatabase, Pool, Row, Sqlite, SqlitePool};
 use std::ops::Add;
 
 pub struct PersistentTodoManager {
-    pub is_migrated: bool,
     pub database_name: String,
 }
 
 impl PersistentTodoManager {
     pub fn new(database_name: String) -> Self {
-        PersistentTodoManager {
-            is_migrated: false,
-            database_name,
-        }
+        PersistentTodoManager { database_name }
     }
 
-    pub async fn initialize(&mut self) {
+    pub async fn initialize(&self) {
         let database_creation_result = self.create_database_if_not_exist().await;
         match database_creation_result {
             true => println!("Database successfully created or checked"),
@@ -30,13 +26,12 @@ impl PersistentTodoManager {
         }
     }
 
-    pub async fn create_database_if_not_exist(&mut self) -> bool {
+    pub async fn create_database_if_not_exist(&self) -> bool {
         let result = Sqlite::database_exists(&self.database_name).await.unwrap();
         if result == false {
             println!("Creating database {}", &self.database_name);
             match Sqlite::create_database(&self.database_name).await {
                 Ok(_) => {
-                    self.is_migrated = true;
                     println!("Migration succeeded");
                     true
                 }
@@ -51,7 +46,7 @@ impl PersistentTodoManager {
         }
     }
 
-    pub async fn migrate(&mut self) -> bool {
+    pub async fn migrate(&self) -> bool {
         let running_dir = std::env::current_dir().unwrap();
         let migrations = std::path::Path::new(&running_dir).join("./migrations");
 
@@ -60,8 +55,7 @@ impl PersistentTodoManager {
             panic!("Migrations folder does not exist");
         }
 
-        let db = SqlitePool::connect(&self.database_name).await.unwrap();
-
+        let db = self.create_connection().await;
         let migration_results = sqlx::migrate::Migrator::new(migrations)
             .await
             .unwrap()
@@ -73,11 +67,19 @@ impl PersistentTodoManager {
             Err(_) => false,
         }
     }
+
+    pub async fn create_connection(&self) -> Pool<Sqlite> {
+        let db = SqlitePool::connect(&self.database_name).await;
+        if db.is_err() {
+            panic!("Could not connect to database");
+        }
+        db.unwrap()
+    }
 }
 
 impl TodoManager for PersistentTodoManager {
     async fn add(&mut self, title: &str, description: &str, done: bool) {
-        let db = SqlitePool::connect(&self.database_name).await.unwrap();
+        let db = self.create_connection().await;
         let done_numeric: i32;
         match done {
             true => done_numeric = 1,
@@ -99,7 +101,7 @@ impl TodoManager for PersistentTodoManager {
     }
 
     async fn remove(&mut self, title: &str) -> bool {
-        let db = SqlitePool::connect(&self.database_name).await.unwrap();
+        let db = self.create_connection().await;
 
         sqlx::query("DELETE FROM Tasks WHERE title = ?")
             .bind(&title)
@@ -110,7 +112,7 @@ impl TodoManager for PersistentTodoManager {
     }
 
     async fn edit_title(&mut self, str: &str, new_title: &str) {
-        let db = SqlitePool::connect(&self.database_name).await.unwrap();
+        let db = self.create_connection().await;
 
         sqlx::query("UPDATE Tasks SET 'title' = ? WHERE title = ?")
             .bind(&new_title)
@@ -121,7 +123,7 @@ impl TodoManager for PersistentTodoManager {
     }
 
     async fn edit_description(&mut self, str: &str, new_description: &str) {
-        let db = SqlitePool::connect(&self.database_name).await.unwrap();
+        let db = self.create_connection().await;
 
         sqlx::query("UPDATE Tasks SET 'description' = ? WHERE title = ?")
             .bind(&new_description)
@@ -132,7 +134,7 @@ impl TodoManager for PersistentTodoManager {
     }
 
     async fn complete(&mut self, title: &str) -> bool {
-        let db = SqlitePool::connect(&self.database_name).await.unwrap();
+        let db = self.create_connection().await;
 
         let result = sqlx::query("UPDATE Tasks SET 'completed' = ? WHERE title = ?")
             .bind(1)
@@ -144,7 +146,7 @@ impl TodoManager for PersistentTodoManager {
     }
 
     async fn print_tasks(&self) {
-        let db = SqlitePool::connect(&self.database_name).await.unwrap();
+        let db = self.create_connection().await;
         let result = sqlx::query("SELECT * FROM Tasks")
             .fetch_all(&db)
             .await
@@ -177,7 +179,7 @@ impl TodoManager for PersistentTodoManager {
     }
 
     async fn is_task_exist(&mut self, title: &str) -> bool {
-        let db = SqlitePool::connect(&self.database_name).await.unwrap();
+        let db = self.create_connection().await;
 
         let result = sqlx::query("SELECT * FROM Tasks WHERE title = ?")
             .bind(&title)
@@ -189,7 +191,7 @@ impl TodoManager for PersistentTodoManager {
     }
 
     async fn set_due_date(&mut self, title: &str, days_count: u64) {
-        let db = SqlitePool::connect(&self.database_name).await.unwrap();
+        let db = self.create_connection().await;
 
         let date = Utc::now().add(Days::new(days_count));
         let timestamp = date.timestamp();
