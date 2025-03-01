@@ -1,4 +1,6 @@
 use crate::todo_manager::*;
+use chrono::{DateTime, Days, Utc};
+use std::ops::Add;
 
 pub struct InMemoryTodoManager {
     tasks: Vec<Task>,
@@ -24,6 +26,7 @@ impl TodoManager for InMemoryTodoManager {
             title: trimmed_title,
             description: trimmed_description,
             done,
+            due_date: None,
         };
 
         self.tasks.push(task);
@@ -74,6 +77,14 @@ impl TodoManager for InMemoryTodoManager {
         match self.get(title) {
             Some(_) => true,
             None => false,
+        }
+    }
+
+    async fn set_due_date(&mut self, title: &str, days_count: u64) {
+        let task = self.get(title);
+        if task.is_some() {
+            let date = Utc::now().add(Days::new(days_count));
+            task.unwrap().due_date = Some(date);
         }
     }
 }

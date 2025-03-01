@@ -4,6 +4,7 @@ pub enum TodoAction {
     REMOVE,
     EDITTITLE,
     EDITDESCRIPTION,
+    SETDUEDATE,
     QUIT,
     LIST,
     COMPLETE

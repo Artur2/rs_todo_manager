@@ -20,6 +20,7 @@ pub async fn main() {
                    a: for add
                    et: for edit title
                    ed: for edit description
+                   dd: for set due_date
                    l: for list
                    c: for complete
                    q: for quit"#
@@ -35,7 +36,10 @@ pub async fn main() {
             TodoAction::ADD => add_task(&mut persistent_todo_manager).await,
             TodoAction::REMOVE => remove_task(&mut persistent_todo_manager).await,
             TodoAction::EDITTITLE => edit_task_title(&mut persistent_todo_manager).await,
-            TodoAction::EDITDESCRIPTION => edit_task_description(&mut persistent_todo_manager).await,
+            TodoAction::SETDUEDATE => set_due_date(&mut persistent_todo_manager).await,
+            TodoAction::EDITDESCRIPTION => {
+                edit_task_description(&mut persistent_todo_manager).await
+            }
             TodoAction::COMPLETE => complete_task(&mut persistent_todo_manager).await,
             TodoAction::QUIT => exit = true,
             _ => println!("Invalid command"),
@@ -58,11 +62,12 @@ pub fn detect_action(input: &str) -> TodoAction {
         "l" => TodoAction::LIST,
         "c" => TodoAction::COMPLETE,
         "r" => TodoAction::REMOVE,
+        "dd" => TodoAction::SETDUEDATE,
         _ => TodoAction::NONE,
     }
 }
 
-pub async  fn add_task(todo_instance: &mut PersistentTodoManager) {
+pub async fn add_task(todo_instance: &mut PersistentTodoManager) {
     let mut title = String::default();
     let mut description = String::default();
 
@@ -92,7 +97,7 @@ pub async  fn add_task(todo_instance: &mut PersistentTodoManager) {
     todo_instance.add(&title, &description, false).await;
 }
 
-pub async  fn remove_task(todo_instance: &mut PersistentTodoManager) {
+pub async fn remove_task(todo_instance: &mut PersistentTodoManager) {
     println!("specify title to remove task");
     let mut title = String::default();
 
@@ -113,7 +118,7 @@ pub async  fn remove_task(todo_instance: &mut PersistentTodoManager) {
     }
 }
 
-pub async  fn complete_task(todo_instance: &mut PersistentTodoManager) {
+pub async fn complete_task(todo_instance: &mut PersistentTodoManager) {
     let mut title = String::default();
     println!("Specify title for task to complete");
     stdin().read_line(&mut title).unwrap();
@@ -122,13 +127,13 @@ pub async  fn complete_task(todo_instance: &mut PersistentTodoManager) {
         println!("Title is not specified");
     }
 
-    match todo_instance.complete(&title.trim()).await {
-        true => println!("task {} completed", title.trim()),
-        false => println!("task {} not completed", title.trim())
+    match todo_instance.complete(&title).await {
+        true => println!("task {} completed", title),
+        false => println!("task {} not completed", title),
     }
 }
 
-pub async  fn edit_task_title(todo_instance: &mut PersistentTodoManager) {
+pub async fn edit_task_title(todo_instance: &mut PersistentTodoManager) {
     let mut title = String::default();
     let mut new_title = String::default();
 
@@ -156,7 +161,7 @@ pub async  fn edit_task_title(todo_instance: &mut PersistentTodoManager) {
     todo_instance.edit_title(&title, &new_title).await;
 }
 
-pub async  fn edit_task_description(todo_instance: &mut PersistentTodoManager) {
+pub async fn edit_task_description(todo_instance: &mut PersistentTodoManager) {
     let mut title = String::default();
     let mut new_description = String::default();
 
@@ -181,5 +186,27 @@ pub async  fn edit_task_description(todo_instance: &mut PersistentTodoManager) {
         println!("New title is not specified");
         return;
     }
-    todo_instance.edit_description(&title, &new_description).await;
+    todo_instance
+        .edit_description(&title, &new_description)
+        .await;
+}
+
+pub async fn set_due_date(todo_instance: &mut PersistentTodoManager) {
+    let mut days_as_string = String::default();
+    let mut title_raw = String::default();
+
+    println!("Specify title for task:");
+    stdin().read_line(&mut title_raw).unwrap();
+    let title = title_raw.trim().to_string();
+
+    stdin().read_line(&mut days_as_string).unwrap();
+
+    let days_as_string = days_as_string.trim().to_string();
+    let days = days_as_string.parse::<u64>();
+    if days.is_err() {
+        println!("Invalid days value");
+        return;
+    }
+
+    todo_instance.set_due_date(&title, days.unwrap()).await;
 }

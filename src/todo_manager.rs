@@ -1,7 +1,10 @@
+use chrono::{DateTime, Utc};
+
 pub struct Task {
     pub title: String,
     pub description: String,
     pub done: bool,
+    pub due_date: Option<DateTime<Utc>>,
 }
 
 pub trait TodoManager {
@@ -23,4 +26,7 @@ pub trait TodoManager {
 
     /// Check if tasks completed
     async fn is_task_exist(&mut self, title: &str) -> bool;
+
+    /// Adding due date to task
+    async fn set_due_date(&mut self, title: &str, days_count: u64);
 }

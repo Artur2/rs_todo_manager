@@ -1,3 +1,6 @@
 /target
 *.sqlite
 .idea
+*.sqlite-wal
+*.sqlite-shm
+Cargo.lock

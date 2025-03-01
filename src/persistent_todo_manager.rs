@@ -1,5 +1,7 @@
 use crate::todo_manager::TodoManager;
+use chrono::{DateTime, Days, Utc};
 use sqlx::{migrate::MigrateDatabase, Row, Sqlite, SqlitePool};
+use std::ops::Add;
 
 pub struct PersistentTodoManager {
     pub is_migrated: bool,
@@ -152,7 +154,25 @@ impl TodoManager for PersistentTodoManager {
             let title = task.get::<String, &str>("title");
             let description = task.get::<String, &str>("description");
             let done = task.get::<u8, &str>("completed");
-            println!("{}\t{}\t completed: {}", title, description, done);
+            let due_date = task.get::<i64, &str>("due_date");
+
+            if due_date > 0 {
+                let due_date = DateTime::from_timestamp(due_date, 0);
+                if due_date.is_some() {
+                    println!(
+                        "{}\t{}\t completed: {}, due_date: {}",
+                        title,
+                        description,
+                        done,
+                        due_date.unwrap().to_string()
+                    );
+                }
+            } else {
+                println!(
+                    "{}\t{}\t completed: {}, due_date: empty",
+                    title, description, done
+                );
+            }
         }
     }
 
@@ -166,5 +186,18 @@ impl TodoManager for PersistentTodoManager {
             .unwrap();
 
         result.len() != 0
+    }
+
+    async fn set_due_date(&mut self, title: &str, days_count: u64) {
+        let db = SqlitePool::connect(&self.database_name).await.unwrap();
+
+        let date = Utc::now().add(Days::new(days_count));
+        let timestamp = date.timestamp();
+
+        let result = sqlx::query("UPDATE Tasks SET 'due_date' = ? WHERE title = ?")
+            .bind(timestamp)
+            .bind(&title)
+            .execute(&db)
+            .await;
     }
 }
