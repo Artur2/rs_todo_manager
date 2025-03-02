@@ -10,8 +10,8 @@ use todo_manager::*;
 
 #[tokio::main]
 pub async fn main() {
-    let mut persistent_todo_manager =
-        PersistentTodoManager::new(String::from("todo_manager.sqlite"));
+    let database_name = String::from("todo_manager.sqlite");
+    let mut persistent_todo_manager = PersistentTodoManager::new(database_name);
     persistent_todo_manager.initialize().await;
 
     println!("Welcome to todo manager");
@@ -27,7 +27,7 @@ pub async fn main() {
     );
 
     loop {
-        let mut line = String::new();
+        let mut line = String::default();
         stdin().read_line(&mut line).unwrap();
         let mut exit = false;
 
