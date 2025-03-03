@@ -1,5 +1,6 @@
 use chrono::{DateTime, Utc};
 
+#[derive(Default, Debug)]
 pub struct Task {
     pub title: String,
     pub description: String,
@@ -8,6 +9,8 @@ pub struct Task {
 }
 
 pub trait TodoManager {
+    async fn initialize(&self);
+
     /// Adding new task
     async fn add(&mut self, title: &str, description: &str, done: bool);
 

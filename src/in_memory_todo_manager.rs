@@ -18,6 +18,8 @@ impl InMemoryTodoManager {
 }
 
 impl TodoManager for InMemoryTodoManager {
+    async fn initialize(&self) {}
+
     async fn add(&mut self, title: &str, description: &str, done: bool) {
         let trimmed_title = String::from(title.trim());
         let trimmed_description = String::from(description.trim());

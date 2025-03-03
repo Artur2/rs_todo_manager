@@ -14,20 +14,6 @@ impl PersistentTodoManager {
         PersistentTodoManager { database_name }
     }
 
-    pub async fn initialize(&self) {
-        let database_creation_result = self.create_database_if_not_exist().await;
-        match database_creation_result {
-            true => println!("Database successfully created or checked"),
-            false => panic!("Database creation failed"),
-        }
-
-        let migration_result = self.migrate().await;
-        match migration_result {
-            true => println!("Database migrated successfully"),
-            false => panic!("Database migration failed"),
-        }
-    }
-
     pub async fn create_database_if_not_exist(&self) -> bool {
         let result = Sqlite::database_exists(&self.database_name).await.unwrap();
         if result == false {
@@ -85,6 +71,20 @@ impl PersistentTodoManager {
 }
 
 impl TodoManager for PersistentTodoManager {
+    async fn initialize(&self) {
+        let database_creation_result = self.create_database_if_not_exist().await;
+        match database_creation_result {
+            true => println!("Database successfully created or checked"),
+            false => panic!("Database creation failed"),
+        }
+
+        let migration_result = self.migrate().await;
+        match migration_result {
+            true => println!("Database migrated successfully"),
+            false => panic!("Database migration failed"),
+        }
+    }
+
     async fn add(&mut self, title: &str, description: &str, done: bool) {
         let db = self.create_connection().await;
         let done_numeric: i32;
@@ -160,8 +160,8 @@ impl TodoManager for PersistentTodoManager {
             .unwrap();
 
         for (_, task) in result.iter().enumerate() {
-            let title = task.get::<String, &str>("title");
-            let description = task.get::<String, &str>("description");
+            let title = task.get::<&str, &str>("title");
+            let description = task.get::<&str, &str>("description");
             let done = task.get::<u8, &str>("completed");
             let due_date = task.get::<i64, &str>("due_date");
 
@@ -188,7 +188,7 @@ impl TodoManager for PersistentTodoManager {
     async fn is_task_exist(&mut self, title: &str) -> bool {
         let db = self.create_connection().await;
 
-        let result = sqlx::query("SELECT * FROM Tasks WHERE title = ?")
+        let result = sqlx::query("SELECT 1 FROM Tasks WHERE title = ?")
             .bind(&title)
             .fetch_all(&db)
             .await
@@ -203,7 +203,7 @@ impl TodoManager for PersistentTodoManager {
         let date = Utc::now().add(Days::new(days_count));
         let timestamp = date.timestamp();
 
-         sqlx::query("UPDATE Tasks SET 'due_date' = ? WHERE title = ?")
+        sqlx::query("UPDATE Tasks SET 'due_date' = ? WHERE title = ?")
             .bind(timestamp)
             .bind(&title)
             .execute(&db)
