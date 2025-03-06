@@ -158,12 +158,17 @@ impl TodoManager for PersistentTodoManager {
             .fetch_all(&db)
             .await
             .unwrap();
+        
+        let title_column = "title";
+        let description_column = "description";
+        let completed_column = "completed";
+        let due_date_column = "due_date";
 
         for (_, task) in result.iter().enumerate() {
-            let title = task.get::<&str, &str>("title");
-            let description = task.get::<&str, &str>("description");
-            let done = task.get::<u8, &str>("completed");
-            let due_date = task.get::<i64, &str>("due_date");
+            let title = task.get::<&str, &str>(&title_column);
+            let description = task.get::<&str, &str>(&description_column);
+            let done = task.get::<u8, &str>(&completed_column);
+            let due_date = task.get::<i64, &str>(&due_date_column);
 
             if due_date > 0 {
                 let due_date = DateTime::from_timestamp(due_date, 0);
