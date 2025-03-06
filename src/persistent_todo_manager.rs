@@ -2,7 +2,7 @@
 
 use crate::todo_manager::TodoManager;
 use chrono::{DateTime, Days, Utc};
-use sqlx::{migrate::MigrateDatabase, Pool, Row, Sqlite, SqlitePool};
+use sqlx::{Pool, Row, Sqlite, SqlitePool, migrate::MigrateDatabase};
 use std::ops::Add;
 
 pub struct PersistentTodoManager {
@@ -57,11 +57,14 @@ impl PersistentTodoManager {
 
         match migration_results {
             Ok(_) => true,
-            Err(_) => false,
+            Err(error_description) => {
+                println!("Error: {}", error_description);
+                false
+            }
         }
     }
 
-    pub async fn create_connection(&self) -> Pool<Sqlite> {
+    async fn create_connection(&self) -> Pool<Sqlite> {
         let db = SqlitePool::connect(&self.database_name).await;
         if db.is_err() {
             panic!("Could not connect to database");
@@ -158,7 +161,7 @@ impl TodoManager for PersistentTodoManager {
             .fetch_all(&db)
             .await
             .unwrap();
-        
+
         let title_column = "title";
         let description_column = "description";
         let completed_column = "completed";
