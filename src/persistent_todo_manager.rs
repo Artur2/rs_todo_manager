@@ -6,7 +6,7 @@ use sqlx::{Pool, Row, Sqlite, SqlitePool, migrate::MigrateDatabase};
 use std::ops::Add;
 
 pub struct PersistentTodoManager {
-    pub database_name: String,
+    database_name: String,
 }
 
 impl PersistentTodoManager {
