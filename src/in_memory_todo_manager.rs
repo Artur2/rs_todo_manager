@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use crate::todo_manager::*;
 use chrono::{Days, Utc};
 use std::ops::Add;
@@ -34,7 +36,7 @@ impl TodoManager for InMemoryTodoManager {
         self.tasks.push(task);
     }
 
-    async fn remove(&mut self, title: &str) -> bool {
+    async fn remove(&mut self, title: String) -> bool {
         let task = self.tasks.iter().position(|t| t.title == title);
         match task {
             Some(index) => {
@@ -59,8 +61,8 @@ impl TodoManager for InMemoryTodoManager {
         }
     }
 
-    async fn complete(&mut self, title: &str) -> bool {
-        let task = self.get(title);
+    async fn complete(&mut self, title: String) -> bool {
+        let task = self.get(&title);
         if task.is_some() {
             task.unwrap().done = true;
             return true;

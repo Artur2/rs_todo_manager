@@ -3,17 +3,25 @@ mod persistent_todo_manager;
 mod todo_actions;
 mod todo_manager;
 
+use crate::in_memory_todo_manager::InMemoryTodoManager;
 use crate::persistent_todo_manager::PersistentTodoManager;
+use clap::Parser;
 use std::io::*;
 use todo_actions::TodoAction;
 use todo_manager::*;
 
+#[derive(Parser)]
+#[command(version, about, long_about = None)]
+pub struct Cli {
+    /// Path to line-by-line words file to absorb by trie, optionally with priority
+    #[arg(short, long, default_value = "false")]
+    pub in_memory: bool,
+}
+
 #[tokio::main]
 pub async fn main() {
-    let database_name = String::from("todo_manager.sqlite");
-    let mut persistent_todo_manager = PersistentTodoManager::new(database_name);
-    persistent_todo_manager.initialize().await;
-
+    let cli = Cli::parse();
+    let mut todo_manager = create_manager(cli.in_memory);
     println!("Welcome to todo manager");
     println!(
         r#"Please enter a,e,l,q,c
@@ -32,15 +40,13 @@ pub async fn main() {
         let mut exit = false;
 
         match detect_action(&line) {
-            TodoAction::LIST => persistent_todo_manager.print_tasks().await,
-            TodoAction::ADD => add_task(&mut persistent_todo_manager).await,
-            TodoAction::REMOVE => remove_task(&mut persistent_todo_manager).await,
-            TodoAction::EDITTITLE => edit_task_title(&mut persistent_todo_manager).await,
-            TodoAction::SETDUEDATE => set_due_date(&mut persistent_todo_manager).await,
-            TodoAction::EDITDESCRIPTION => {
-                edit_task_description(&mut persistent_todo_manager).await
-            }
-            TodoAction::COMPLETE => complete_task(&mut persistent_todo_manager).await,
+            TodoAction::LIST => todo_manager.print_tasks().await,
+            TodoAction::ADD => add_task(&mut todo_manager).await,
+            TodoAction::REMOVE => remove_task(&mut todo_manager).await,
+            TodoAction::EDITTITLE => edit_task_title(&mut todo_manager).await,
+            TodoAction::SETDUEDATE => set_due_date(&mut todo_manager).await,
+            TodoAction::EDITDESCRIPTION => edit_task_description(&mut todo_manager).await,
+            TodoAction::COMPLETE => complete_task(&mut todo_manager).await,
             TodoAction::QUIT => exit = true,
             _ => println!("Invalid command"),
         }
@@ -51,6 +57,15 @@ pub async fn main() {
 
         println!("Activity is complete, specify next");
     }
+}
+
+pub fn create_manager(in_memory: bool) -> impl TodoManager {
+    if in_memory {
+        InMemoryTodoManager::new();
+    }
+
+    let database_name = String::from("todo_manager.sqlite");
+    PersistentTodoManager::new(database_name.to_owned())
 }
 
 pub fn detect_action(input: &str) -> TodoAction {
@@ -67,7 +82,10 @@ pub fn detect_action(input: &str) -> TodoAction {
     }
 }
 
-pub async fn add_task(todo_instance: &mut PersistentTodoManager) {
+pub async fn add_task<M>(todo_instance: &mut M)
+where
+    M: TodoManager,
+{
     let mut title = String::default();
     let mut description = String::default();
 
@@ -97,7 +115,10 @@ pub async fn add_task(todo_instance: &mut PersistentTodoManager) {
     todo_instance.add(&title, &description, false).await;
 }
 
-pub async fn remove_task(todo_instance: &mut PersistentTodoManager) {
+pub async fn remove_task<M>(todo_instance: &mut M)
+where
+    M: TodoManager,
+{
     println!("specify title to remove task");
     let mut title = String::default();
 
@@ -108,7 +129,7 @@ pub async fn remove_task(todo_instance: &mut PersistentTodoManager) {
         println!("Title is not specified");
     }
 
-    match todo_instance.remove(&title).await {
+    match todo_instance.remove(title.to_owned()).await {
         true => {
             println!("task with title {} removed", title);
         }
@@ -118,7 +139,10 @@ pub async fn remove_task(todo_instance: &mut PersistentTodoManager) {
     }
 }
 
-pub async fn complete_task(todo_instance: &mut PersistentTodoManager) {
+pub async fn complete_task<M>(todo_instance: &mut M)
+where
+    M: TodoManager,
+{
     let mut title = String::default();
     println!("Specify title for task to complete");
     stdin().read_line(&mut title).unwrap();
@@ -127,13 +151,16 @@ pub async fn complete_task(todo_instance: &mut PersistentTodoManager) {
         println!("Title is not specified");
     }
 
-    match todo_instance.complete(&title).await {
+    match todo_instance.complete(title.to_owned()).await {
         true => println!("task {} completed", title),
         false => println!("task {} not completed", title),
     }
 }
 
-pub async fn edit_task_title(todo_instance: &mut PersistentTodoManager) {
+pub async fn edit_task_title<M>(todo_instance: &mut M)
+where
+    M: TodoManager,
+{
     let mut title = String::default();
     let mut new_title = String::default();
 
@@ -161,7 +188,10 @@ pub async fn edit_task_title(todo_instance: &mut PersistentTodoManager) {
     todo_instance.edit_title(&title, &new_title).await;
 }
 
-pub async fn edit_task_description(todo_instance: &mut PersistentTodoManager) {
+pub async fn edit_task_description<M>(todo_instance: &mut M)
+where
+    M: TodoManager,
+{
     let mut title = String::default();
     let mut new_description = String::default();
 
@@ -191,7 +221,10 @@ pub async fn edit_task_description(todo_instance: &mut PersistentTodoManager) {
         .await;
 }
 
-pub async fn set_due_date(todo_instance: &mut PersistentTodoManager) {
+pub async fn set_due_date<M>(todo_instance: &mut M)
+where
+    M: TodoManager,
+{
     let mut days_as_string = String::default();
     let mut title_raw = String::default();
 

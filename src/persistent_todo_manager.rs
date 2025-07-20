@@ -110,7 +110,7 @@ impl TodoManager for PersistentTodoManager {
         }
     }
 
-    async fn remove(&mut self, title: &str) -> bool {
+    async fn remove(&mut self, title: String) -> bool {
         let db = self.create_connection().await;
 
         sqlx::query("DELETE FROM Tasks WHERE title = ?")
@@ -143,12 +143,12 @@ impl TodoManager for PersistentTodoManager {
             .expect("Not updated");
     }
 
-    async fn complete(&mut self, title: &str) -> bool {
+    async fn complete(&mut self, title: String) -> bool {
         let db = self.create_connection().await;
 
         let result = sqlx::query("UPDATE Tasks SET 'completed' = ? WHERE title = ?")
             .bind(1)
-            .bind(&title)
+            .bind(title)
             .execute(&db)
             .await;
 

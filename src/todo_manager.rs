@@ -15,14 +15,14 @@ pub trait TodoManager {
     async fn add(&mut self, title: &str, description: &str, done: bool);
 
     /// Removing task from task manager
-    async fn remove(&mut self, title: &str) -> bool;
+    async fn remove(&mut self, title: String) -> bool;
 
     /// Editing title if we match task by title
     async fn edit_title(&mut self, str: &str, new_title: &str);
     /// Editing description
     async fn edit_description(&mut self, str: &str, new_description: &str);
     /// Completing task
-    async fn complete(&mut self, title: &str) -> bool;
+    async fn complete(&mut self, title: String) -> bool;
 
     /// Print current tasks
     async fn print_tasks(&self);
