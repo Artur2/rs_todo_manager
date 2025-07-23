@@ -3,6 +3,7 @@ use crate::todo_actions::TodoAction;
 use crate::todo_manager::TodoManager;
 use std::cell::RefCell;
 use std::io::stdin;
+use chrono::{DateTime, Local, Utc};
 
 pub trait ActionDispatcher<P, M>
 where
@@ -54,42 +55,42 @@ where
 {
     async fn dispatch(&mut self, input: &str) -> bool {
         let result = self.parse_action(input);
+        let start = Local::now();
+        let mut return_result = false;
         match result {
             TodoAction::ADD => {
                 self.add_task().await;
-                false
             }
             TodoAction::REMOVE => {
                 self.remove_task().await;
-                false
             }
             TodoAction::EDITTITLE => {
                 self.edit_task_title().await;
-                false
             }
             TodoAction::SETDUEDATE => {
                 self.set_due_date().await;
-                false
             }
             TodoAction::EDITDESCRIPTION => {
                 self.edit_task_description().await;
-                false
             }
             TodoAction::COMPLETE => {
                 self.complete_task().await;
-                false
             },
             TodoAction::LIST => {
                 let todo_manager = self.todo_manager.borrow();
                 todo_manager.print_tasks().await;
-                false
             },
-            TodoAction::QUIT => true,
+            TodoAction::QUIT => {
+                return_result = true;
+            },
             _ => {
                 println!("Invalid command");
-                false
             }
         }
+
+        let diff = Local::now() - start;
+        println!("elapsed time: {}", diff.num_microseconds().unwrap());
+        return_result
     }
 
     async fn add_task(&mut self) {

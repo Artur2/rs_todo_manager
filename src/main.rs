@@ -16,7 +16,7 @@ use todo_manager::*;
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
 pub struct Cli {
-    /// Path to line-by-line words file to absorb by trie, optionally with priority
+    /// Use in memory todo manager
     #[arg(short, long, default_value = "false")]
     pub in_memory: bool,
 }
@@ -57,7 +57,7 @@ pub fn create_manager(in_memory: bool) -> impl TodoManager {
     }
 
     let database_name = String::from("todo_manager.sqlite");
-    PersistentTodoManager::new(database_name.to_owned())
+    PersistentTodoManager::new(database_name)
 }
 
 pub fn create_action_parser() -> impl ActionParser {
