@@ -77,7 +77,7 @@ impl TodoManager for InMemoryTodoManager {
         });
     }
 
-    async fn is_task_exist(&mut self, title: &str) -> bool {
+    async fn task_exist(&mut self, title: &str) -> bool {
         match self.get(title) {
             Some(_) => true,
             None => false,

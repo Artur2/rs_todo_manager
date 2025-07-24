@@ -1,10 +1,11 @@
 use crate::action_parser::ActionParser;
 use crate::todo_actions::TodoAction;
 use crate::todo_manager::TodoManager;
-use chrono::{DateTime, Local, Utc};
+use chrono::Local;
 use std::cell::RefCell;
 use std::io::stdin;
 
+#[allow(async_fn_in_trait)]
 pub trait ActionDispatcher<P, M>
 where
     P: ActionParser,
@@ -36,8 +37,8 @@ where
     }
 
     fn parse_action(&self, input: &str) -> TodoAction {
-        let parserCell = &self.action_parser;
-        let parser = parserCell.borrow();
+        let parser_cell = &self.action_parser;
+        let parser = parser_cell.borrow();
         parser.parse(input)
     }
 
@@ -65,7 +66,7 @@ where
 
         let mut todo_instance = self.todo_manager.borrow_mut();
 
-        if todo_instance.is_task_exist(&title).await {
+        if todo_instance.task_exist(&title).await {
             println!("Task {} already exists", title);
             return;
         }
@@ -125,7 +126,7 @@ where
         }
 
         let mut todo_instance = self.todo_manager.borrow_mut();
-        if !todo_instance.is_task_exist(&title).await {
+        if !todo_instance.task_exist(&title).await {
             println!("Task {} not found", title);
             return;
         }
@@ -154,7 +155,7 @@ where
         }
 
         let mut todo_instance = self.todo_manager.borrow_mut();
-        if !todo_instance.is_task_exist(&title).await {
+        if !todo_instance.task_exist(&title).await {
             println!("Task {} not found", title);
             return;
         }

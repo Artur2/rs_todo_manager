@@ -40,7 +40,7 @@ pub trait TodoManager {
     async fn print_tasks(&self);
 
     /// Check if tasks completed
-    async fn is_task_exist(&mut self, title: &str) -> bool;
+    async fn task_exist(&mut self, title: &str) -> bool;
 
     /// Adding due date to task
     async fn set_due_date(&mut self, title: &str, days_count: u64);
@@ -56,14 +56,14 @@ mod tests {
     pub async fn should_create_task() {
         let mut todo_manager = InMemoryTodoManager::new();
         todo_manager.add("test", "t", false).await;
-        let task_exist = todo_manager.is_task_exist("test").await;
+        let task_exist = todo_manager.task_exist("test").await;
         assert_eq!(true, task_exist);
     }
     #[tokio::test]
     pub async fn should_not_exist_task() {
         let mut todo_manager = InMemoryTodoManager::new();
         todo_manager.add("test", "t", false).await;
-        let task_exist = todo_manager.is_task_exist("t").await;
+        let task_exist = todo_manager.task_exist("t").await;
         assert_eq!(false, task_exist);
     }
 

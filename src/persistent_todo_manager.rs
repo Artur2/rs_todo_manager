@@ -1,9 +1,8 @@
 #![allow(unused_must_use)]
 
-use crate::todo_manager;
 use crate::todo_manager::{Task, TodoManager};
 use chrono::{DateTime, Days, Utc};
-use sqlx::{Pool, Row, Sqlite, SqlitePool, migrate::MigrateDatabase};
+use sqlx::{migrate::MigrateDatabase, Pool, Row, Sqlite, SqlitePool};
 use std::ops::Add;
 
 pub struct PersistentTodoManager {
@@ -194,7 +193,7 @@ impl TodoManager for PersistentTodoManager {
         }
     }
 
-    async fn is_task_exist(&mut self, title: &str) -> bool {
+    async fn task_exist(&mut self, title: &str) -> bool {
         let db = self.create_connection().await;
 
         let result = sqlx::query("SELECT 1 FROM Tasks WHERE title = ?")
