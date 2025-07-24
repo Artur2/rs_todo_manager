@@ -1,6 +1,7 @@
 #![allow(unused_must_use)]
 
-use crate::todo_manager::TodoManager;
+use crate::todo_manager;
+use crate::todo_manager::{Task, TodoManager};
 use chrono::{DateTime, Days, Utc};
 use sqlx::{Pool, Row, Sqlite, SqlitePool, migrate::MigrateDatabase};
 use std::ops::Add;
@@ -216,5 +217,33 @@ impl TodoManager for PersistentTodoManager {
             .bind(&title)
             .execute(&db)
             .await;
+    }
+
+    async fn get_existing(&mut self, title: &str) -> Option<Task> {
+        let db = self.create_connection().await;
+
+        let result = sqlx::query("SELECT * FROM Tasks WHERE title = ?")
+            .bind(&title)
+            .fetch_one(&db)
+            .await
+            .unwrap();
+
+        if result.is_empty() {
+            return None;
+        }
+        
+        let title: &str = result.get(1);
+        let description: &str = result.get(2);
+        let completed: i32 = result.get(3);
+        let due_date: i64 = result.get(4);
+
+        let task = Task {
+            title: String::from(title),
+            description: String::from(description),
+            done: completed == 1,
+            due_date: DateTime::from_timestamp(due_date, 0),
+        };
+
+        Some(task)
     }
 }

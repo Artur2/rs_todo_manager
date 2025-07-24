@@ -91,4 +91,13 @@ impl TodoManager for InMemoryTodoManager {
             task.unwrap().due_date = Some(date);
         }
     }
+
+    async fn get_existing(&mut self, title: &str) -> Option<Task> {
+        let task = self.get(title);
+        if task.is_some() {
+            return Some(task.unwrap().clone());
+        }
+
+        None
+    }
 }
