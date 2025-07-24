@@ -1,9 +1,9 @@
 use crate::action_parser::ActionParser;
 use crate::todo_actions::TodoAction;
 use crate::todo_manager::TodoManager;
+use chrono::{DateTime, Local, Utc};
 use std::cell::RefCell;
 use std::io::stdin;
-use chrono::{DateTime, Local, Utc};
 
 pub trait ActionDispatcher<P, M>
 where
@@ -12,12 +12,6 @@ where
 {
     // returns true if exit
     async fn dispatch(&mut self, input: &str) -> bool;
-    async fn add_task(&mut self);
-    async fn remove_task(&mut self);
-    async fn complete_task(&mut self);
-    async fn edit_task_title(&mut self);
-    async fn edit_task_description(&mut self);
-    async fn set_due_date(&mut self);
 }
 
 pub struct DefaultActionDispatcher<P, M>
@@ -45,52 +39,6 @@ where
         let parserCell = &self.action_parser;
         let parser = parserCell.borrow();
         parser.parse(input)
-    }
-}
-
-impl<P, M> ActionDispatcher<P, M> for DefaultActionDispatcher<P, M>
-where
-    P: ActionParser,
-    M: TodoManager,
-{
-    async fn dispatch(&mut self, input: &str) -> bool {
-        let result = self.parse_action(input);
-        let start = Local::now();
-        let mut return_result = false;
-        match result {
-            TodoAction::ADD => {
-                self.add_task().await;
-            }
-            TodoAction::REMOVE => {
-                self.remove_task().await;
-            }
-            TodoAction::EDITTITLE => {
-                self.edit_task_title().await;
-            }
-            TodoAction::SETDUEDATE => {
-                self.set_due_date().await;
-            }
-            TodoAction::EDITDESCRIPTION => {
-                self.edit_task_description().await;
-            }
-            TodoAction::COMPLETE => {
-                self.complete_task().await;
-            },
-            TodoAction::LIST => {
-                let todo_manager = self.todo_manager.borrow();
-                todo_manager.print_tasks().await;
-            },
-            TodoAction::QUIT => {
-                return_result = true;
-            },
-            _ => {
-                println!("Invalid command");
-            }
-        }
-
-        let diff = Local::now() - start;
-        println!("elapsed time: {}", diff.num_microseconds().unwrap());
-        return_result
     }
 
     async fn add_task(&mut self) {
@@ -242,5 +190,51 @@ where
 
         let mut todo_instance = self.todo_manager.borrow_mut();
         todo_instance.set_due_date(&title, days.unwrap()).await;
+    }
+}
+
+impl<P, M> ActionDispatcher<P, M> for DefaultActionDispatcher<P, M>
+where
+    P: ActionParser,
+    M: TodoManager,
+{
+    async fn dispatch(&mut self, input: &str) -> bool {
+        let result = self.parse_action(input);
+        let start = Local::now();
+        let mut return_result = false;
+        match result {
+            TodoAction::ADD => {
+                self.add_task().await;
+            }
+            TodoAction::REMOVE => {
+                self.remove_task().await;
+            }
+            TodoAction::EDITTITLE => {
+                self.edit_task_title().await;
+            }
+            TodoAction::SETDUEDATE => {
+                self.set_due_date().await;
+            }
+            TodoAction::EDITDESCRIPTION => {
+                self.edit_task_description().await;
+            }
+            TodoAction::COMPLETE => {
+                self.complete_task().await;
+            }
+            TodoAction::LIST => {
+                let todo_manager = self.todo_manager.borrow();
+                todo_manager.print_tasks().await;
+            }
+            TodoAction::QUIT => {
+                return_result = true;
+            }
+            _ => {
+                println!("Invalid command");
+            }
+        }
+
+        let diff = Local::now() - start;
+        println!("elapsed time: {}", diff.num_microseconds().unwrap());
+        return_result
     }
 }

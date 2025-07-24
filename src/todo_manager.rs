@@ -19,6 +19,7 @@ impl Clone for Task {
     }
 }
 
+#[allow(async_fn_in_trait)]
 pub trait TodoManager {
     async fn initialize(&self);
 
