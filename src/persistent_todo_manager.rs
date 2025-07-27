@@ -3,6 +3,7 @@
 use crate::todo_manager::{Task, TodoManager};
 use chrono::{DateTime, Days, Utc};
 use sqlx::{migrate::MigrateDatabase, Pool, Row, Sqlite, SqlitePool};
+use std::fs::remove_file;
 use std::ops::Add;
 
 pub struct PersistentTodoManager {
@@ -62,6 +63,26 @@ impl PersistentTodoManager {
                 false
             }
         }
+    }
+
+    #[allow(dead_code)]
+    pub async fn remove_database_if_exist(&self) -> bool {
+        let running_dir = std::env::current_dir().unwrap();
+
+        let database_name = running_dir.join(&self.database_name);
+
+        let mut wal_file_name = String::from(&self.database_name.clone());
+        wal_file_name.push_str("-wal");
+        let wal_name = wal_file_name;
+
+        let mut shm_file_name = String::from(&self.database_name.clone());
+        shm_file_name.push_str("-shm");
+        let shm_name = shm_file_name;
+
+        remove_file(database_name);
+        remove_file(wal_name);
+        remove_file(shm_name);
+        true
     }
 
     async fn create_connection(&self) -> Pool<Sqlite> {
@@ -230,7 +251,7 @@ impl TodoManager for PersistentTodoManager {
         if result.is_empty() {
             return None;
         }
-        
+
         let title: &str = result.get(1);
         let description: &str = result.get(2);
         let completed: i32 = result.get(3);
@@ -244,5 +265,24 @@ impl TodoManager for PersistentTodoManager {
         };
 
         Some(task)
+    }
+}
+
+
+mod tests {
+    use super::*;
+    use uuid::Uuid;
+
+    #[tokio::test]
+    async fn add_task_should_successfully() {
+        let random_database_name = Uuid::new_v4().to_string();
+        let mut todo_manager = PersistentTodoManager::new(random_database_name.to_string());
+        todo_manager.initialize().await;
+        todo_manager.add("test", "test description", false).await;
+
+        let task = todo_manager.get_existing("test").await;
+        assert_eq!(task.unwrap().title, "test");
+
+        todo_manager.remove_database_if_exist().await;
     }
 }
