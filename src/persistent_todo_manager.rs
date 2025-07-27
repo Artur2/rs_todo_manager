@@ -3,7 +3,7 @@
 use crate::todo_manager::{Task, TodoManager};
 use chrono::{DateTime, Days, Utc};
 use sqlx::{migrate::MigrateDatabase, Pool, Row, Sqlite, SqlitePool};
-use std::fs::remove_file;
+use std::fs::{exists, remove_file};
 use std::ops::Add;
 
 pub struct PersistentTodoManager {
@@ -79,9 +79,17 @@ impl PersistentTodoManager {
         shm_file_name.push_str("-shm");
         let shm_name = shm_file_name;
 
-        remove_file(database_name);
-        remove_file(wal_name);
-        remove_file(shm_name);
+        if exists(&database_name).is_ok() {
+            remove_file(database_name);
+        }
+        if exists(&wal_name).is_ok() {
+            remove_file(wal_name);
+        }
+
+        if exists(&shm_name).is_ok() {
+            remove_file(shm_name);
+        }
+
         true
     }
 
@@ -269,6 +277,7 @@ impl TodoManager for PersistentTodoManager {
 }
 
 
+#[allow(unused_imports)]
 mod tests {
     use super::*;
     use uuid::Uuid;
@@ -282,6 +291,21 @@ mod tests {
 
         let task = todo_manager.get_existing("test").await;
         assert_eq!(task.unwrap().title, "test");
+
+        todo_manager.remove_database_if_exist().await;
+    }
+
+    #[tokio::test]
+    async fn should_complete_task() {
+        let random_database_name = Uuid::new_v4().to_string();
+        let mut todo_manager = PersistentTodoManager::new(random_database_name.to_string());
+        todo_manager.initialize().await;
+        todo_manager.add("test", "test description", false).await;
+        todo_manager.complete("test".to_string()).await;
+
+        let task = todo_manager.get_existing("test").await;
+
+        assert_eq!(task.unwrap().done, true);
 
         todo_manager.remove_database_if_exist().await;
     }
