@@ -4,6 +4,7 @@ mod in_memory_todo_manager;
 mod persistent_todo_manager;
 mod todo_actions;
 mod todo_manager;
+pub mod data;
 
 use crate::action_dispatcher::{ActionDispatcher, DefaultActionDispatcher};
 use crate::action_parser::{ActionParser, StringActionParser};

@@ -4,11 +4,12 @@ version = "0.0.1"
 edition = "2024"
 
 [dependencies]
-sqlx = { version = "0.8.3", features = ["runtime-tokio-native-tls", "sqlite"]}
-tokio = { version = "1.44.0", features = ["macros", "rt-multi-thread"]}
-chrono = "0.4.40"
+toasty = { version = "0.10.0", features = ["jiff", "sqlite"] }
+
+tokio = { version = "1.44.0", features = ["macros", "rt-multi-thread"] }
 clap = { version = "4.5.33", features = ["derive"] }
-uuid = { version =  "1.17.0", features = ["v4"] }
+uuid = { version = "1.17.0", features = ["v4"] }
+jiff = "0.2.35"
 
 [rust]
 lto = "thin"

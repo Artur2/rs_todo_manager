@@ -1,23 +1,4 @@
-use chrono::{DateTime, Utc};
-
-#[derive(Default, Debug)]
-pub struct Task {
-    pub title: String,
-    pub description: String,
-    pub done: bool,
-    pub due_date: Option<DateTime<Utc>>,
-}
-
-impl Clone for Task {
-    fn clone(&self) -> Self {
-        Task {
-            title: self.title.clone(),
-            description: self.description.clone(),
-            done: self.done,
-            due_date: self.due_date.clone(),
-        }
-    }
-}
+use crate::data::task::*;
 
 #[allow(async_fn_in_trait)]
 pub trait TodoManager {

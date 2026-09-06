@@ -1,7 +1,6 @@
 use crate::action_parser::ActionParser;
 use crate::todo_actions::TodoAction;
 use crate::todo_manager::TodoManager;
-use chrono::Local;
 use std::cell::RefCell;
 use std::io::stdin;
 
@@ -201,7 +200,6 @@ where
 {
     async fn dispatch(&mut self, input: &str) -> bool {
         let result = self.parse_action(input);
-        let start = Local::now();
         let mut return_result = false;
         match result {
             TodoAction::ADD => {
@@ -233,9 +231,7 @@ where
                 println!("Invalid command");
             }
         }
-
-        let diff = Local::now() - start;
-        println!("elapsed time: {}", diff.num_microseconds().unwrap());
+        
         return_result
     }
 }

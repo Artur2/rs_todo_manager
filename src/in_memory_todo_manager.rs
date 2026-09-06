@@ -1,8 +1,10 @@
 #![allow(dead_code)]
 
+use crate::data::task::Task;
 use crate::todo_manager::*;
-use chrono::{Days, Utc};
+use jiff::Span;
 use std::ops::Add;
+use toasty::stmt::Type::Zoned;
 
 pub struct InMemoryTodoManager {
     tasks: Vec<Task>,
@@ -27,6 +29,7 @@ impl TodoManager for InMemoryTodoManager {
         let trimmed_description = String::from(description.trim());
 
         let task = Task {
+            id: uuid::Uuid::new_v4(),
             title: trimmed_title,
             description: trimmed_description,
             done,
@@ -87,8 +90,10 @@ impl TodoManager for InMemoryTodoManager {
     async fn set_due_date(&mut self, title: &str, days_count: u64) {
         let task = self.get(title);
         if task.is_some() {
-            let date = Utc::now().add(Days::new(days_count));
-            task.unwrap().due_date = Some(date);
+            let date = jiff::Zoned::now()
+                .checked_add(Span::new().days(days_count as i64))
+                .unwrap();
+            task.unwrap().due_date = Some(date.timestamp());
         }
     }
 

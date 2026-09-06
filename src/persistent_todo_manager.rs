@@ -1,10 +1,11 @@
 #![allow(unused_must_use)]
 
-use crate::todo_manager::{Task, TodoManager};
-use chrono::{DateTime, Days, Utc};
-use sqlx::{migrate::MigrateDatabase, Pool, Row, Sqlite, SqlitePool};
+use crate::data::task::Task;
+use crate::todo_manager::TodoManager;
+use jiff::Span;
+use jiff::Zoned;
 use std::fs::{exists, remove_file};
-use std::ops::Add;
+use toasty::Db;
 
 pub struct PersistentTodoManager {
     database_name: String,
@@ -16,59 +17,23 @@ impl PersistentTodoManager {
     }
 
     pub async fn create_database_if_not_exist(&self) -> bool {
-        let result = Sqlite::database_exists(&self.database_name).await.unwrap();
-        if result == false {
-            println!("Creating database {}", &self.database_name);
-            match Sqlite::create_database(&self.database_name).await {
-                Ok(_) => {
-                    println!("Migration succeeded");
-                    true
-                }
-                Err(error) => {
-                    println!("error: {}", error);
-                    false
-                }
-            }
-        } else {
-            println!("Database already exists");
-            true
-        }
-    }
-
-    pub async fn migrate(&self) -> bool {
-        let running_dir = std::env::current_dir().unwrap();
-        let migrations = std::path::Path::new(&running_dir).join("./migrations");
-
-        let migration_folder_exists = migrations.try_exists();
-
-        if migration_folder_exists.is_err() {
-            panic!("Could not find migration folder");
-        }
-
-        if !migration_folder_exists.unwrap() {
-            panic!("Migrations folder does not exist");
-        }
-
-        let db = self.create_connection().await;
-        let migration_results = sqlx::migrate::Migrator::new(migrations)
-            .await
-            .unwrap()
-            .run(&db)
+        let connection = Db::builder()
+            .models(toasty::models!(Task))
+            .connect(&self.database_name)
             .await;
 
-        match migration_results {
-            Ok(_) => true,
-            Err(error_description) => {
-                println!("Error: {}", error_description);
-                false
+        match connection {
+            Ok(connection) => {
+                connection.push_schema().await;
+                true
             }
+            Err(e) => false,
         }
     }
 
     #[allow(dead_code)]
     pub async fn remove_database_if_exist(&self) -> bool {
         let running_dir = std::env::current_dir().unwrap();
-
         let database_name = running_dir.join(&self.database_name);
 
         let mut wal_file_name = String::from(&self.database_name.clone());
@@ -93,12 +58,13 @@ impl PersistentTodoManager {
         true
     }
 
-    async fn create_connection(&self) -> Pool<Sqlite> {
-        let db = SqlitePool::connect(&self.database_name).await;
-        if db.is_err() {
-            panic!("Could not connect to database");
-        }
-        db.unwrap()
+    async fn create_connection(&self) -> Db {
+        let connection = toasty::Db::builder()
+            .models(toasty::models!(Task))
+            .connect(&self.database_name)
+            .await;
+
+        connection.unwrap_or_else(|_| panic!("cant create database"))
     }
 }
 
@@ -109,29 +75,18 @@ impl TodoManager for PersistentTodoManager {
             true => println!("Database successfully created or checked"),
             false => panic!("Database creation failed"),
         }
-
-        let migration_result = self.migrate().await;
-        match migration_result {
-            true => println!("Database migrated successfully"),
-            false => panic!("Database migration failed"),
-        }
     }
 
     async fn add(&mut self, title: &str, description: &str, done: bool) {
-        let db = self.create_connection().await;
-        let done_numeric: i32;
-        match done {
-            true => done_numeric = 1,
-            false => done_numeric = 0,
-        }
+        let mut db = self.create_connection().await;
 
-        let result =
-            sqlx::query("INSERT INTO Tasks(title, description, completed) VALUES (?, ?, 0)")
-                .bind(&title)
-                .bind(&description)
-                .bind(&done_numeric)
-                .execute(&db)
-                .await;
+        let result = toasty::create!(Task {
+            title: title.to_string(),
+            description: description.to_string(),
+            done: done
+        })
+        .exec(&mut db)
+        .await;
 
         match result {
             Ok(_) => println!("task added"),
@@ -140,142 +95,176 @@ impl TodoManager for PersistentTodoManager {
     }
 
     async fn remove(&mut self, title: String) -> bool {
-        let db = self.create_connection().await;
+        let mut db = self.create_connection().await;
 
-        sqlx::query("DELETE FROM Tasks WHERE title = ?")
-            .bind(&title)
-            .execute(&db)
-            .await
-            .expect("Not Deleted");
+        let task = Task::filter(Task::fields().title().eq(title))
+            .first()
+            .exec(&mut db)
+            .await;
+
+        match task {
+            Ok(found) => match found {
+                None => {
+                    println!("Task not found");
+                    return false;
+                }
+                Some(task) => {
+                    task.delete().exec(&mut db).await;
+                }
+            },
+            Err(e) => {
+                println!("{:?}", e);
+                return false;
+            }
+        }
+
         true
     }
 
     async fn edit_title(&mut self, str: &str, new_title: &str) {
-        let db = self.create_connection().await;
+        let mut db = self.create_connection().await;
 
-        sqlx::query("UPDATE Tasks SET 'title' = ? WHERE title = ?")
-            .bind(&new_title)
-            .bind(&str)
-            .execute(&db)
-            .await
-            .expect("Not Deleted");
+        let entry = Task::filter(Task::fields().title().eq(str))
+            .first()
+            .exec(&mut db)
+            .await;
+
+        match entry {
+            Ok(found_task) => match found_task {
+                None => {
+                    println!("Task not found");
+                }
+                Some(mut entry) => {
+                    toasty::update!(entry { title: new_title })
+                        .exec(&mut db)
+                        .await;
+                }
+            },
+            Err(_) => {
+                println!("Task not found")
+            }
+        }
     }
 
     async fn edit_description(&mut self, str: &str, new_description: &str) {
-        let db = self.create_connection().await;
+        let mut db = self.create_connection().await;
 
-        sqlx::query("UPDATE Tasks SET 'description' = ? WHERE title = ?")
-            .bind(&new_description)
-            .bind(&str)
-            .execute(&db)
-            .await
-            .expect("Not updated");
+        let entry = Task::filter(Task::fields().title().eq(str))
+            .first()
+            .exec(&mut db)
+            .await;
+
+        match entry {
+            Ok(found_task) => match found_task {
+                None => {
+                    println!("Task not found");
+                }
+                Some(mut entry) => {
+                    toasty::update!(entry {
+                        description: new_description
+                    })
+                    .exec(&mut db)
+                    .await;
+                }
+            },
+            Err(_) => {
+                println!("Task not found")
+            }
+        }
     }
 
     async fn complete(&mut self, title: String) -> bool {
-        let db = self.create_connection().await;
+        let mut db = self.create_connection().await;
 
-        let result = sqlx::query("UPDATE Tasks SET 'completed' = ? WHERE title = ?")
-            .bind(1)
-            .bind(title)
-            .execute(&db)
+        let entry = Task::filter(Task::fields().title().eq(title))
+            .first()
+            .exec(&mut db)
             .await;
 
-        result.is_ok()
+        match entry {
+            Ok(found_task) => match found_task {
+                None => {
+                    println!("Task not found");
+                    false
+                }
+                Some(mut entry) => {
+                    toasty::update!(entry { done: true }).exec(&mut db).await;
+                    true
+                }
+            },
+            Err(_) => {
+                println!("Task not found");
+                false
+            }
+        }
     }
 
     async fn print_tasks(&self) {
-        let db = self.create_connection().await;
-        let result = sqlx::query("SELECT * FROM Tasks")
-            .fetch_all(&db)
-            .await
-            .unwrap();
-
-        let title_column = "title";
-        let description_column = "description";
-        let completed_column = "completed";
-        let due_date_column = "due_date";
+        let mut db = self.create_connection().await;
+        let result = toasty::query!(Task).exec(&mut db).await.unwrap();
 
         for (_, task) in result.iter().enumerate() {
-            let title = task.get::<&str, &str>(&title_column);
-            let description = task.get::<&str, &str>(&description_column);
-            let done = task.get::<u8, &str>(&completed_column);
-            let due_date = task.get::<i64, &str>(&due_date_column);
-
-            if due_date > 0 {
-                let due_date = DateTime::from_timestamp(due_date, 0);
-                if due_date.is_some() {
-                    println!(
-                        "{}\t{}\t completed: {}, due_date: {}",
-                        title,
-                        description,
-                        done,
-                        due_date.unwrap().to_string()
-                    );
-                }
+            if task.due_date.is_some() {
+                println!(
+                    "{}\t{}\t completed: {}, due_date: {}",
+                    task.title,
+                    task.description,
+                    task.done,
+                    task.due_date.unwrap().to_string()
+                )
             } else {
                 println!(
                     "{}\t{}\t completed: {}, due_date: empty",
-                    title, description, done
+                    task.title, task.description, task.done
                 );
             }
         }
     }
 
     async fn task_exist(&mut self, title: &str) -> bool {
-        let db = self.create_connection().await;
+        let mut db = self.create_connection().await;
 
-        let result = sqlx::query("SELECT 1 FROM Tasks WHERE title = ?")
-            .bind(&title)
-            .fetch_all(&db)
-            .await
-            .unwrap();
+        let result = Task::filter(Task::fields().title().eq(title))
+            .count()
+            .exec(&mut db)
+            .await;
 
-        result.len() != 0
+        result.is_ok() && result.unwrap() > 0
     }
 
     async fn set_due_date(&mut self, title: &str, days_count: u64) {
-        let db = self.create_connection().await;
+        let mut db = self.create_connection().await;
 
-        let date = Utc::now().add(Days::new(days_count));
-        let timestamp = date.timestamp();
+        let date = Zoned::now()
+            .checked_add(Span::new().days(days_count as i64))
+            .unwrap();
 
-        sqlx::query("UPDATE Tasks SET 'due_date' = ? WHERE title = ?")
-            .bind(timestamp)
-            .bind(&title)
-            .execute(&db)
-            .await;
+        let mut task = Task::filter(Task::fields().title().eq(title))
+            .first()
+            .exec(&mut db)
+            .await
+            .unwrap()
+            .unwrap();
+
+        toasty::update!(task {
+            due_date: &date.timestamp()
+        })
+        .exec(&mut db)
+        .await;
     }
 
     async fn get_existing(&mut self, title: &str) -> Option<Task> {
-        let db = self.create_connection().await;
+        let mut db = self.create_connection().await;
 
-        let result = sqlx::query("SELECT * FROM Tasks WHERE title = ?")
-            .bind(&title)
-            .fetch_one(&db)
+        let result = toasty::query!(Task)
+            .filter(Task::fields().title().eq(title))
+            .first()
+            .exec(&mut db)
             .await
             .unwrap();
-
-        if result.is_empty() {
-            return None;
-        }
-
-        let title: &str = result.get(1);
-        let description: &str = result.get(2);
-        let completed: i32 = result.get(3);
-        let due_date: i64 = result.get(4);
-
-        let task = Task {
-            title: String::from(title),
-            description: String::from(description),
-            done: completed == 1,
-            due_date: DateTime::from_timestamp(due_date, 0),
-        };
-
-        Some(task)
+        result
     }
 }
-
 
 #[allow(unused_imports)]
 mod tests {
@@ -284,7 +273,7 @@ mod tests {
 
     #[tokio::test]
     async fn add_task_should_successfully() {
-        let random_database_name = Uuid::new_v4().to_string();
+        let random_database_name = "sqlite:".to_string() + Uuid::new_v4().to_string().as_str() + ".db";
         let mut todo_manager = PersistentTodoManager::new(random_database_name.to_string());
         todo_manager.initialize().await;
         todo_manager.add("test", "test description", false).await;
@@ -297,7 +286,7 @@ mod tests {
 
     #[tokio::test]
     async fn should_complete_task() {
-        let random_database_name = Uuid::new_v4().to_string();
+        let random_database_name = "sqlite:".to_string() + Uuid::new_v4().to_string().as_str() + ".db";
         let mut todo_manager = PersistentTodoManager::new(random_database_name.to_string());
         todo_manager.initialize().await;
         todo_manager.add("test", "test description", false).await;
@@ -306,6 +295,21 @@ mod tests {
         let task = todo_manager.get_existing("test").await;
 
         assert_eq!(task.unwrap().done, true);
+
+        todo_manager.remove_database_if_exist().await;
+    }
+
+    #[tokio::test]
+    async fn should_add_due_date() {
+        let random_database_name = "sqlite:".to_string() + Uuid::new_v4().to_string().as_str() + ".db";
+        let mut todo_manager = PersistentTodoManager::new(random_database_name.to_string());
+        todo_manager.initialize().await;
+        todo_manager.add("test", "test description", false).await;
+        todo_manager.set_due_date("test", 1).await;
+
+        let task = todo_manager.get_existing("test").await;
+
+        assert_eq!(task.unwrap().due_date.is_some(), true);
 
         todo_manager.remove_database_if_exist().await;
     }
